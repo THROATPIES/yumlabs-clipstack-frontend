@@ -1,5 +1,6 @@
-import { Component, createSignal } from "solid-js";
+import { Component, createSignal, onCleanup } from "solid-js";
 import "./AuthenticatedView.css";
+import axios from "axios";
 
 interface UserInfo {
   id: string;
@@ -8,31 +9,48 @@ interface UserInfo {
 }
 
 const AuthenticatedView: Component<{ userInfo: UserInfo | null }> = (props) => {
+  const [videoList, setVideoList] = createSignal<any[]>([]);
   const [selectedVideo, setSelectedVideo] = createSignal("");
+  const [queueOpen, setQueueOpen] = createSignal(false);
   const baseUrl = "https://clips.twitch.tv/embed?clip=";
+  const captureUrl = "http://localhost:8080/api/start_capture/";
   const parentUrl = "&parent=localhost";
-  // Mock video list - replace with actual data fetching logic
-  const videoList: any[] = [
-    {
-      id: "1",
-      title: "Dick for probie!!!!",
-      url: "StylishApatheticShrimpBudStar-vobyMLMj7HKVd_pu",
-    },
-  ];
-  let isOpen = false;
+  
+  // WebSocket connection to monitor for new clip URLs
+  const ws = new WebSocket("ws://localhost:8080/ws/monitor");
+
+  ws.onopen = () => {
+    console.log("WebSocket connection opened");
+  };
+
+  ws.onmessage = (event) => {
+    console.log(event.data);
+    const newClip = event.data;
+    setVideoList([...videoList(), { title: "New Twitch Clip", url: newClip }]);
+  };
+
+  onCleanup(() => ws.close());
+
+  const convertUrlForTwitch = (url: string) => {
+    
+
+
+  }
+
   const handleQueue = () => {
-    // Add selected video to queue
-    if (selectedVideo()) {
-      isOpen = true;
-      let displayName = props.userInfo?.display_name;
-      //send a request to the server to start adding clips from chat to the queue
-      // let response = fetch('/api/start_capture', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({displayName}),
-      // });
+    setQueueOpen(true);
+    let displayName = props.userInfo?.display_name;
+    if (displayName) {
+      console.log(`Starting capture for ${displayName}`);
+      axios.post(`${captureUrl}${displayName}`)
+        .then((response) => {
+          console.log(response.data); // Log the response to check if capture started
+        })
+        .catch((error) => {
+          console.error("Error starting capture:", error);
+        });
+    } else {
+      console.error("No display name provided!");
     }
   };
 
@@ -77,15 +95,15 @@ const AuthenticatedView: Component<{ userInfo: UserInfo | null }> = (props) => {
               padding: "0.25rem",
               "box-shadow": "0 2px 2px rgba(0, 0, 0, 0.1)",
             }}
-            onClick={() => setSelectedVideo("")}
+            onClick={() => handleQueue()}
           >
             Unlock the Stack
           </button>
           <h2>Clips</h2>
           <ul>
-            {videoList.map((video) => (
-              <li onClick={() => setSelectedVideo(video.url)}>
-                🎬 {video.title}
+            {videoList().map((video, index) => (
+              <li key={index} onClick={() => setSelectedVideo(video.url)}>
+                🎬 {video.title} | {video.url}
               </li>
             ))}
           </ul>
